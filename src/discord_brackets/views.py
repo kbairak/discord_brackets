@@ -58,33 +58,11 @@ class CollectionView(discord.ui.View):
             )
             return
 
-        # Defer - starting tournament can be slow
-        await interaction.response.defer()
-
-        await db.start(tournament.id)
-
-        # Rerender without the buttons
+        options = await db.get_option_names(tournament.id)
         assert interaction.message is not None
-        await interaction.message.edit(view=None)  # Remove the buttons
-
-        state = await db.get_state(tournament.id)
-        poll_ids = []
-        await interaction.followup.send(
-            f":tada: Tournament started! {state.rounds[-1].name}", view=RoundView(state, poll_ids)
+        await interaction.response.send_modal(
+            RankOptionsModal(options, tournament.id, interaction.message)
         )
-        for match in state.rounds[-1].matches:
-            message = await interaction.followup.send(
-                poll=discord.Poll(
-                    f"{match.left.name} vs {match.right.name}",
-                    answers=[
-                        discord.PollAnswer(match.left.name, "1️⃣"),
-                        discord.PollAnswer(match.right.name, "2️⃣"),
-                    ],
-                )
-            )
-            assert message is not None
-            # We are mutating this list so RoundView will be able to retrieve the mesage IDs
-            poll_ids.append(message.id)
 
 
 class AddOptionModal(discord.ui.Modal):
@@ -129,16 +107,66 @@ class EditOptionsModal(discord.ui.Modal):
 
     async def callback(self, interaction: discord.Interaction) -> None:
         text = (self.children[0].value or "").strip()
-
         option_names = [line.strip() for line in text.split("\n") if line.strip()]
-
         await db.edit_options(self.tournament_id, set(option_names))
-
         await self.message.edit(content=await db.get_options_text(self.tournament_id))
+        await interaction.response.defer()
 
-        await interaction.response.send_message(
-            f"Updated options! Now have {len(option_names)} options.", ephemeral=True
+
+class RankOptionsModal(discord.ui.Modal):
+    def __init__(self, options: list[str], tournament_id: int, message: discord.Message):
+        super().__init__(title="Rank options")
+        self.tournament_id = tournament_id
+        self.message = message
+
+        self.add_item(
+            discord.ui.InputText(
+                label="Rankings (higher=better seed, default 5)",
+                placeholder="5: Option 1\n5: Option 2\n5: Option 3",
+                style=discord.InputTextStyle.long,
+                max_length=2000,
+                value="\n".join(f"5: {option}" for option in options) if options else "",
+                required=False,
+            )
         )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        # Defer immediately - starting tournament takes time
+        await interaction.response.defer()
+
+        rankings: dict[str, int] = {}
+        for line in (self.children[0].value or "").split("\n"):
+            if ":" not in line:
+                continue
+            rank_str, option_name = line.split(":", 1)
+            option_name = option_name.strip()
+            try:
+                rank = int(rank_str.strip())
+            except ValueError:
+                continue
+            rankings[option_name] = rank
+
+        await db.start(self.tournament_id, rankings)
+        await self.message.edit(view=None)  # Remove the buttons
+        state = await db.get_state(self.tournament_id)
+        poll_ids = []
+        await interaction.followup.send(
+            f":tada: Tournament started! {state.rounds[-1].name}", view=RoundView(state, poll_ids)
+        )
+        for match in state.rounds[-1].matches:
+            message = await interaction.followup.send(
+                poll=discord.Poll(
+                    f"{match.left.name} vs {match.right.name}",
+                    answers=[
+                        discord.PollAnswer(match.left.name, "1️⃣"),
+                        discord.PollAnswer(match.right.name, "2️⃣"),
+                    ],
+                    duration=24 * 30,
+                )
+            )
+            assert message is not None
+            # We are mutating this list so RoundView will be able to retrieve the mesage IDs
+            poll_ids.append(message.id)
 
 
 class RoundView(discord.ui.View):
@@ -212,6 +240,7 @@ class RoundView(discord.ui.View):
                             discord.PollAnswer(match.left.name, "1️⃣"),
                             discord.PollAnswer(match.right.name, "2️⃣"),
                         ],
+                        duration=24 * 30,
                     )
                 )
                 assert message is not None

@@ -232,7 +232,7 @@ async def edit_options(session: AsyncSession, tournament_id: int, options: set[s
 
 
 @with_session
-async def start(session: AsyncSession, tournament_id: int) -> None:
+async def start(session: AsyncSession, tournament_id: int, rankings: dict[str, int]) -> None:
     options = list(
         (
             await session.execute(
@@ -246,7 +246,14 @@ async def start(session: AsyncSession, tournament_id: int) -> None:
     if len(options) < 2:
         raise ValueError("Not enough options to start the tournament")
 
-    random.shuffle(options)
+    options = sorted(options, key=lambda o: rankings.get(o.name, 5), reverse=True)
+    groups = [
+        list(group) for _, group in itertools.groupby(options, lambda o: rankings.get(o.name, 5))
+    ]
+    for group in groups:
+        random.shuffle(group)
+    options = functools.reduce(list.__add__, groups)
+
     for i, option in enumerate(options):
         option.place = i
 
@@ -259,12 +266,21 @@ async def start(session: AsyncSession, tournament_id: int) -> None:
 
     play_in_size = (len(options) - tournament_size) * 2
 
+    # Seed-based pairing: highest seed (#1) faces lowest, #2 faces second-lowest, etc.
+    # This prevents top options from eliminating each other early
     if play_in_size:
-        for i in range(len(options) - play_in_size, len(options), 2):
-            session.add(models.Match(round=0, left_id=options[i].id, right_id=options[i + 1].id))
+        for i in range(play_in_size // 2):
+            left = 2 * tournament_size - len(options) + i
+            right = -i - 1
+            session.add(
+                models.Match(round=0, left_id=options[left].id, right_id=options[right].id)
+            )
     else:
-        for i in range(0, len(options), 2):
-            session.add(models.Match(round=1, left_id=options[i].id, right_id=options[i + 1].id))
+        for i in range(0, len(options) // 2):
+            left, right = i, -i - 1
+            session.add(
+                models.Match(round=1, left_id=options[left].id, right_id=options[right].id)
+            )
     print("Tournament started")
 
 
@@ -364,13 +380,15 @@ async def advance(session: AsyncSession, tournament_id: int) -> bool:
         print("Tournament finished")
         return True
 
-    for i in range(0, len(new_options), 2):
+    # Seed-based pairing: highest seed (#1) faces lowest, #2 faces second-lowest, etc.
+    # This prevents top options from eliminating each other early
+    for i in range(0, len(new_options) // 2):
         session.add(
             models.Match(
                 round=matches[0][0].round + 1,
                 left_id=new_options[i].id,
-                right_id=new_options[i + 1].id,
+                right_id=new_options[-i - 1].id,
             )
         )
-        print("Tournament advanced")
+    print("Tournament advanced")
     return False
