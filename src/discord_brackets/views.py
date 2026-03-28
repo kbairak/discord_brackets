@@ -1,6 +1,6 @@
 import discord
 
-from . import db, types
+from . import db, types, visualization
 
 
 class CollectionView(discord.ui.View):
@@ -181,6 +181,10 @@ class RoundView(discord.ui.View):
         await interaction.message.edit(view=None)  # Remove the button
 
         state = await db.get_state(self.state.id)
+
+        # Generate bracket image
+        bracket_image = await visualization.generate_bracket_image(self.state.id)
+
         if finished:
             (last_match,) = state.rounds[-1].matches
             if last_match.left.winner:
@@ -189,7 +193,8 @@ class RoundView(discord.ui.View):
                 winner = last_match.right.name
             await interaction.followup.send(
                 f":tada: :tada: :tada: Tournament finished! Winner: **{winner}** :tada: :tada: "
-                ":tada:"
+                ":tada:",
+                file=bracket_image,
             )
         else:
             poll_ids = []
@@ -197,6 +202,7 @@ class RoundView(discord.ui.View):
                 f"Next round: {state.rounds[-1].name}, options remaining: "
                 f"{len(state.rounds[-1].matches) * 2}",
                 view=RoundView(state, poll_ids),
+                file=bracket_image,
             )
             for match in state.rounds[-1].matches:
                 message = await interaction.followup.send(

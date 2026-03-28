@@ -263,7 +263,8 @@ doctl apps create --spec .do/app.yaml
 
 ## TODOs
 
-- [ ] Image
 - [ ] Custom order to make sure favourites have a small chance of encountering each other early
 - [ ] Timer
 - [ ] User-selected emoji per option
+- [ ] Unit-tests, at least for db.py
+- [ ] Deploy to GCP

@@ -150,12 +150,12 @@ async def get_state(session: AsyncSession, tournament_id: int) -> types.Tourname
                     id=db_match.id,
                     left=types.Option(
                         name=db_match.left.name,
-                        votes=left_vote_count if not is_last else None,
+                        votes=left_vote_count,
                         winner=db_match.winner == "left",
                     ),
                     right=types.Option(
                         name=db_match.right.name,
-                        votes=right_vote_count if not is_last else None,
+                        votes=right_vote_count,
                         winner=db_match.winner == "right",
                     ),
                 )
