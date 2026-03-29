@@ -10,6 +10,7 @@ dependencies = [
     "pillow>=12.1.0",
     "sqlalchemy[asyncio]>=2.0.48",
     "aiosqlite>=0.22.1",
+    "emoji>=2.15.0",
 ]
 
 [project.scripts]

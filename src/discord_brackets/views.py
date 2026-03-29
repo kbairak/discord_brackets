@@ -1,6 +1,6 @@
 import discord
 
-from . import db, types, visualization
+from . import db, utils, visualization
 
 
 class CollectionView(discord.ui.View):
@@ -151,34 +151,26 @@ class RankOptionsModal(discord.ui.Modal):
         state = await db.get_state(self.tournament_id)
         poll_ids = []
         await interaction.followup.send(
-            f":tada: Tournament started! {state.rounds[-1].name}", view=RoundView(state, poll_ids)
+            f":tada: Tournament started! {state.rounds[-1].name}", view=RoundView(poll_ids)
         )
         for match in state.rounds[-1].matches:
-            message = await interaction.followup.send(
-                poll=discord.Poll(
-                    f"{match.left.name} vs {match.right.name}",
-                    answers=[
-                        discord.PollAnswer(match.left.name, "1️⃣"),
-                        discord.PollAnswer(match.right.name, "2️⃣"),
-                    ],
-                    duration=24 * 30,
-                )
-            )
+            message = await interaction.followup.send(poll=utils.create_match_poll(match))
             assert message is not None
             # We are mutating this list so RoundView will be able to retrieve the mesage IDs
             poll_ids.append(message.id)
 
 
 class RoundView(discord.ui.View):
-    def __init__(self, state: types.Tournament, poll_ids: list[int]) -> None:
+    def __init__(self, poll_ids: list[int]) -> None:
         super().__init__(timeout=None)
-        self.state = state
         self.poll_ids = poll_ids
 
     @discord.ui.button(
         label="End round (creator only)", style=discord.ButtonStyle.danger, custom_id="end_round"
     )
-    async def end_round(self, _: discord.ui.Button, interaction: discord.Interaction) -> None:
+    async def end_round(
+        self, _button: discord.ui.Button, interaction: discord.Interaction
+    ) -> None:
         assert interaction.channel_id is not None
         tournament = await db.get_tournament_by_channel(interaction.channel_id)
         if (
@@ -194,24 +186,31 @@ class RoundView(discord.ui.View):
         # Defer immediately - this work takes more than 3 seconds
         await interaction.response.defer()
 
-        for match, poll_id in zip(self.state.rounds[-1].matches, self.poll_ids):
+        state = await db.get_state(tournament.id)
+
+        for match, poll_id in zip(state.rounds[-1].matches, self.poll_ids):
             assert isinstance(interaction.channel, discord.abc.Messageable)
             message = await interaction.channel.fetch_message(poll_id)
             assert message.poll is not None
+
+            # Extract text-only names for matching
+            _, left_text = utils.split_emoji(match.left.name)
+            # _, right_text = utils.split_emoji(match.right.name)
+
             for answer in message.poll.answers:
                 async for user in answer.voters():
-                    await db.vote(
-                        user.id, match.id, "left" if answer.text == match.left.name else "right"
-                    )
+                    # Match against text-only names
+                    direction = "left" if answer.text == left_text else "right"
+                    await db.vote(user.id, match.id, direction)
             await message.poll.end()
-        finished = await db.advance(self.state.id)
+        finished = await db.advance(state.id)
         assert interaction.message is not None
         await interaction.message.edit(view=None)  # Remove the button
 
-        state = await db.get_state(self.state.id)
+        state = await db.get_state(state.id)
 
         # Generate bracket image
-        bracket_image = await visualization.generate_bracket_image(self.state.id)
+        bracket_image = await visualization.generate_bracket_image(state.id)
 
         if finished:
             (last_match,) = state.rounds[-1].matches
@@ -229,20 +228,11 @@ class RoundView(discord.ui.View):
             await interaction.followup.send(
                 f"Next round: {state.rounds[-1].name}, options remaining: "
                 f"{len(state.rounds[-1].matches) * 2}",
-                view=RoundView(state, poll_ids),
+                view=RoundView(poll_ids),
                 file=bracket_image,
             )
             for match in state.rounds[-1].matches:
-                message = await interaction.followup.send(
-                    poll=discord.Poll(
-                        f"{match.left.name} vs {match.right.name}",
-                        answers=[
-                            discord.PollAnswer(match.left.name, "1️⃣"),
-                            discord.PollAnswer(match.right.name, "2️⃣"),
-                        ],
-                        duration=24 * 30,
-                    )
-                )
+                message = await interaction.followup.send(poll=utils.create_match_poll(match))
                 assert message is not None
                 # We are mutating this list so RoundView will be able to retrieve the mesage IDs
                 poll_ids.append(message.id)

@@ -2,7 +2,7 @@ import os
 
 import discord
 
-from . import db, types, views
+from . import db, views
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -16,7 +16,7 @@ async def on_ready():
     await db.init_db()
     print("Database loaded")
     bot.add_view(views.CollectionView())
-    bot.add_view(views.RoundView(types.Tournament(id=-1), []))
+    bot.add_view(views.RoundView([]))
 
 
 @bot.command(description="Create a new tournament bracket")

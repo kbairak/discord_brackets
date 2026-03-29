@@ -263,7 +263,6 @@ doctl apps create --spec .do/app.yaml
 
 ## TODOs
 
-- [ ] User-selected emoji per option
 - [ ] Timer
 - [ ] Unit-tests, at least for db.py
 - [ ] Deploy to GCP
