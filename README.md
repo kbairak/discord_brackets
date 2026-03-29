@@ -263,6 +263,6 @@ doctl apps create --spec .do/app.yaml
 
 ## TODOs
 
-- [ ] Timer
 - [ ] Unit-tests, at least for db.py
 - [ ] Deploy to GCP
+- [ ] Timer

@@ -3,7 +3,7 @@ import io
 import discord
 from PIL import Image, ImageDraw, ImageFont
 
-from . import db, types
+from . import db, types, utils
 
 
 def draw_rounded_rectangle(draw, xy, radius=10, fill=None, outline=None, width=1):
@@ -44,11 +44,13 @@ async def generate_bracket_image(tournament_id: int) -> discord.File:
     vertical_gap = 15
     margin = 50
 
-    # Calculate box width based on longest option name
+    # Calculate box width based on longest option name (without emojis)
     max_name_length = 0
     for round_obj in state.rounds:
         for match in round_obj.matches:
-            max_name_length = max(max_name_length, len(match.left.name), len(match.right.name))
+            _, left_text = utils.split_emoji(match.left.name)
+            _, right_text = utils.split_emoji(match.right.name)
+            max_name_length = max(max_name_length, len(left_text), len(right_text))
 
     # Add space for vote count " (999)" and some padding
     box_width = max(120, max_name_length * 8 + 50)
@@ -153,6 +155,8 @@ async def generate_bracket_image(tournament_id: int) -> discord.File:
     # Draw winner box if tournament finished
     if tournament_finished:
         winner_name = final_match.left.name if final_match.left.winner else final_match.right.name
+        # Strip emojis from winner name
+        _, display_winner = utils.split_emoji(winner_name)
 
         winner_x = width - margin - 150
         winner_y = height // 2 - 30
@@ -174,7 +178,8 @@ async def generate_bracket_image(tournament_id: int) -> discord.File:
             winner_font = font
 
         # Truncate if too long
-        display_winner = winner_name if len(winner_name) <= 14 else winner_name[:12] + "..."
+        if len(display_winner) > 14:
+            display_winner = display_winner[:12] + "..."
 
         # Center text
         text_bbox = draw.textbbox((0, 0), display_winner, font=winner_font)
@@ -203,14 +208,26 @@ async def generate_bracket_image(tournament_id: int) -> discord.File:
 
 def _draw_option_box(draw, font, x, y, box_width, box_height, name, votes, is_winner):
     """Draw a single option box with name and vote count."""
-    # Format display text
-    display_name = name if len(name) <= 9 else name[:7] + "..."
+    # Strip emojis from name (PIL can't render custom guild emojis)
+    _, display_name = utils.split_emoji(name)
 
     # Include vote count if available
     if votes is not None:
         display_text = f"{display_name} ({votes})"
     else:
         display_text = display_name
+
+    # Truncate if text is too wide for the box (with some padding)
+    max_width = box_width - 10  # 5px padding on each side
+    text_bbox = draw.textbbox((0, 0), display_text, font=font)
+    text_width = text_bbox[2] - text_bbox[0]
+
+    if text_width > max_width:
+        # Truncate and add ellipsis
+        while text_width > max_width and len(display_text) > 4:
+            display_text = display_text[:-4] + "..."
+            text_bbox = draw.textbbox((0, 0), display_text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
 
     # Colors based on winner status
     box_color = "#90EE90" if is_winner else "white"

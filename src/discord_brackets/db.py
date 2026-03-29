@@ -134,15 +134,18 @@ async def get_state(session: AsyncSession, tournament_id: int) -> types.Tourname
 
     ui_tournament = types.Tournament(id=tournament_id)
     for round_index, round_db_matches in itertools.groupby(db_matches, lambda m: m[0].round):
-        is_last = round_index == last_round_index
+        round_matches_list = list(round_db_matches)
+
         if round_index == 0:
             round_name = "Play-in round"
-        elif is_last:
+        elif len(round_matches_list) == 1:
             round_name = "Final"
         else:
             round_name = f"Round {round_index}"
 
         ui_tournament.rounds.append(ui_round := types.Round(name=round_name))
+
+        round_db_matches = round_matches_list  # Use the list we created
 
         for db_match, left_vote_count, right_vote_count in round_db_matches:
             ui_round.matches.append(
