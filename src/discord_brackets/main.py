@@ -37,6 +37,9 @@ async def brackets(ctx: discord.ApplicationContext, title: str) -> None:
         return
     tournament_id = await db.create_tournament(ctx.author.id, ctx.guild_id, ctx.channel_id, title)
     await ctx.respond(await db.get_options_text(tournament_id), view=views.CollectionView())
+    message = await ctx.interaction.original_response()
+    await message.pin()
+    await db.pin(tournament_id, message.id)
 
 
 def main():

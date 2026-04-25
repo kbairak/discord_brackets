@@ -1,3 +1,5 @@
+from typing import cast
+
 import discord
 
 from . import db, utils, visualization
@@ -150,14 +152,24 @@ class RankOptionsModal(discord.ui.Modal):
         await self.message.edit(view=None)  # Remove the buttons
         state = await db.get_state(self.tournament_id)
         poll_ids = []
-        await interaction.followup.send(
+        round_message = await interaction.followup.send(
             f":tada: Tournament started! {state.rounds[-1].name}", view=RoundView(poll_ids)
         )
+        round_message = cast(discord.Message, round_message)
         for match in state.rounds[-1].matches:
             message = await interaction.followup.send(poll=utils.create_match_poll(match))
             assert message is not None
-            # We are mutating this list so RoundView will be able to retrieve the mesage IDs
+            # We are mutating this list so RoundView will be able to retrieve the message IDs
             poll_ids.append(message.id)
+        assert interaction.channel_id is not None
+        tournament = await db.get_tournament_by_channel(interaction.channel_id)
+        assert tournament is not None
+        assert isinstance(interaction.channel, discord.abc.Messageable)
+        for pin in tournament.pins:
+            message = await interaction.channel.fetch_message(pin.message_id)
+            await message.unpin()
+        await round_message.pin()
+        await db.pin(self.tournament_id, round_message.id)
 
 
 class RoundView(discord.ui.View):
@@ -188,8 +200,8 @@ class RoundView(discord.ui.View):
 
         state = await db.get_state(tournament.id)
 
+        assert isinstance(interaction.channel, discord.abc.Messageable)
         for match, poll_id in zip(state.rounds[-1].matches, self.poll_ids):
-            assert isinstance(interaction.channel, discord.abc.Messageable)
             message = await interaction.channel.fetch_message(poll_id)
             assert message.poll is not None
 
@@ -223,16 +235,26 @@ class RoundView(discord.ui.View):
                 ":tada:",
                 file=bracket_image,
             )
+            for pin in tournament.pins:
+                message = await interaction.channel.fetch_message(pin.message_id)
+                await message.unpin()
+            await db.pin(tournament.id)
         else:
             poll_ids = []
-            await interaction.followup.send(
+            round_message = await interaction.followup.send(
                 f"Next round: {state.rounds[-1].name}, options remaining: "
                 f"{len(state.rounds[-1].matches) * 2}",
                 view=RoundView(poll_ids),
                 file=bracket_image,
             )
+            round_message = cast(discord.Message, round_message)
             for match in state.rounds[-1].matches:
                 message = await interaction.followup.send(poll=utils.create_match_poll(match))
                 assert message is not None
-                # We are mutating this list so RoundView will be able to retrieve the mesage IDs
+                # We are mutating this list so RoundView will be able to retrieve the message IDs
                 poll_ids.append(message.id)
+            for pin in tournament.pins:
+                message = await interaction.channel.fetch_message(pin.message_id)
+                await message.unpin()
+            await round_message.pin()
+            await db.pin(tournament.id, round_message.id)

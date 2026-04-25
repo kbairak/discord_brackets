@@ -9,6 +9,7 @@ A Discord bot that enables community members to run playoff-style bracket tourna
 - Multi-round voting with real-time vote counts
 - Visual bracket representation
 - Support for power-of-2 and non-power-of-2 contestant counts
+- Automatic message pinning to track current tournament progress
 
 ## Setup
 
@@ -45,6 +46,7 @@ A Discord bot that enables community members to run playoff-style bracket tourna
    - Under "Bot Permissions", select:
      - ✅ Send Messages
      - ✅ Attach Files
+     - ✅ Pin messages
    - Copy the generated URL at the bottom
    - Open the URL in your browser and select a server to add the bot to
    - Click "Authorize"
@@ -122,51 +124,6 @@ All bracket data is stored in a PostgreSQL database including:
 
 The database runs in Docker for local development and can be deployed to any PostgreSQL-compatible service (e.g., Render, Railway, Supabase) for production.
 
-## Development
-
-### Quick Commands (Makefile)
-
-```bash
-make help      # Show all available commands
-make lint      # Run ruff and pyright type checkers
-make format    # Auto-format code with ruff
-make test      # Run pytest test suite
-make check     # Run all checks (lint + test)
-make install   # Install dependencies
-make run       # Run the bot
-make clean     # Remove cache files
-```
-
-### Testing
-
-The bot includes a comprehensive test suite with 23 tests covering:
-
-- **Database operations** (8 tests): CRUD operations, vote counting, contestant management
-- **Bracket logic** (10 tests): Generation algorithms, round advancement, edge cases
-- **Integration** (5 tests): Full tournament flows, multi-round scenarios
-
-Run tests with:
-
-```bash
-# Make sure PostgreSQL is running
-docker-compose up -d
-
-# Run tests
-make test
-# or
-pytest tests/ -v
-```
-
-Tests require `DATABASE_URL` to be set. They will clean and recreate tables for each test run.
-
-Test coverage includes:
-
-- Power of 2 contestant counts (2, 4, 8, 16)
-- Non-power of 2 counts requiring play-ins (3, 5, 6, 13)
-- Edge cases (ties, byes, single elimination)
-- Vote tracking and duplicate prevention
-- Full tournament flows from start to winner
-
 ### Type Checking
 
 The project uses Pyright for type checking (officially supported by py-cord):
@@ -175,90 +132,6 @@ The project uses Pyright for type checking (officially supported by py-cord):
 make lint
 # or
 pyright . --pythonversion 3.13
-```
-
-## Project Structure
-
-```
-discord_brackets/
-├── main.py                 # Bot initialization & entry point
-├── bot/
-│   ├── cog.py             # Main bracket command cog
-│   └── views.py           # Discord UI components
-├── database/
-│   ├── db.py              # Database connection
-│   └── models.py          # Database operations
-├── bracket/
-│   ├── logic.py           # Bracket generation & progression
-│   └── image.py           # Bracket visualization
-├── tests/                  # Test suite (pytest)
-│   ├── conftest.py        # Test fixtures
-│   ├── test_database.py   # Database tests
-│   ├── test_bracket_logic.py  # Bracket algorithm tests
-│   └── test_integration.py    # Full flow tests
-└── docker-compose.yml     # PostgreSQL database setup
-```
-
-## Deployment (DigitalOcean App Platform)
-
-This project is ready to deploy to DigitalOcean using the included `.do/app.yaml` spec:
-
-### Prerequisites
-
-- DigitalOcean account
-- GitHub repository with your code
-
-### Deployment Steps
-
-1. **Push to GitHub:**
-
-   ```bash
-   git push origin main
-   ```
-
-2. **Create App on DigitalOcean:**
-   - Go to <https://cloud.digitalocean.com/apps>
-   - Click **"Create App"**
-   - Select **GitHub** as source
-   - Choose your repository and `main` branch
-   - DigitalOcean will auto-detect the `.do/app.yaml` configuration
-
-3. **Review Configuration:**
-   - **Worker:** Discord bot background process ($5/month)
-   - **PostgreSQL:** Database (dev tier: $7/month, production: $15/month)
-   - `DATABASE_URL` is automatically injected into the worker
-
-4. **Set Discord Bot Token:**
-   - In the app configuration, find `DISCORD_BOT_TOKEN`
-   - Click **Edit** and paste your Discord bot token
-   - This is kept secret and only available at runtime
-
-5. **Deploy:**
-   - Click **"Create Resources"**
-   - DigitalOcean will build and deploy your app
-   - Monitor the **Logs** tab to verify the bot started successfully
-
-### Auto-Deployment
-
-- Every push to `main` triggers automatic redeployment
-- View deployment status and logs in the DigitalOcean dashboard
-
-### Pricing
-
-- **Development:** ~$12/month (basic-xxs worker + dev database)
-- **Production:** ~$27/month (basic-xs worker + production database)
-
-### Alternative: CLI Deployment
-
-```bash
-# Install doctl
-brew install doctl  # macOS
-
-# Authenticate
-doctl auth init
-
-# Deploy from app spec
-doctl apps create --spec .do/app.yaml
 ```
 
 ## TODOs

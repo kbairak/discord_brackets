@@ -59,12 +59,15 @@ async def get_tournament_by_channel(
     return (
         (
             await session.execute(
-                select(models.Tournament).where(
+                select(models.Tournament)
+                .where(
                     models.Tournament.channel_id == channel_id,
                     models.Tournament.finished.is_(False),
                 )
+                .options(joinedload(models.Tournament.pins))
             )
         )
+        .unique()
         .scalars()
         .one_or_none()
     )
@@ -395,3 +398,10 @@ async def advance(session: AsyncSession, tournament_id: int) -> bool:
         )
     print("Tournament advanced")
     return False
+
+
+@with_session
+async def pin(session: AsyncSession, tournament_id: int, pin_id: int | None = None) -> None:
+    await session.execute(delete(models.Pin).where(models.Pin.tournament_id == tournament_id))
+    if pin_id is not None:
+        session.add(models.Pin(tournament_id=tournament_id, message_id=pin_id))

@@ -19,6 +19,7 @@ class Tournament(Base):
     finished: Mapped[bool] = mapped_column(default=False)
 
     options: Mapped[list["Option"]] = relationship(back_populates="tournament")
+    pins: Mapped[list["Pin"]] = relationship(back_populates="tournament")
 
 
 class Option(Base):
@@ -58,3 +59,13 @@ class Vote(Base):
     user_id: Mapped[int] = mapped_column(BigInteger)
 
     match: Mapped["Match"] = relationship(back_populates="votes")
+
+
+class Pin(Base):
+    __tablename__ = "pin"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tournament_id: Mapped[int] = mapped_column(ForeignKey("tournament.id"))
+    message_id: Mapped[int] = mapped_column(BigInteger)
+
+    tournament: Mapped["Tournament"] = relationship(back_populates="pins")
