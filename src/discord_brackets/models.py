@@ -43,6 +43,7 @@ class Match(Base):
     left_id: Mapped[int] = mapped_column(ForeignKey("option.id"))
     right_id: Mapped[int] = mapped_column(ForeignKey("option.id"))
     winner: Mapped[str | None] = mapped_column()
+    place: Mapped[int] = mapped_column()
 
     left: Mapped["Option"] = relationship(foreign_keys=[left_id])
     right: Mapped["Option"] = relationship(foreign_keys=[right_id])

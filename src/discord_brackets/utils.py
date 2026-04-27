@@ -1,3 +1,4 @@
+import functools
 import re
 
 import discord
@@ -25,6 +26,7 @@ def create_match_poll(match: types.Match) -> discord.Poll:
     # (Discord will render Unicode emojis but not shortcodes in poll questions)
     def convert_shortcodes(text: str) -> str:
         """Convert Discord shortcodes to Unicode emojis in text."""
+
         def replace_shortcode(match):
             shortcode = match.group()
             try:
@@ -103,3 +105,37 @@ def split_emoji(text: str) -> tuple[str, str]:
         return (emoji_str, rest)
 
     return ("", text)
+
+
+@functools.cache
+def get_recursive_seed_ordering(size: int):
+    """Usage:
+
+    >>> get_recursive_seed_ordering(1)
+    <<< [0]
+
+    >>> get_recursive_seed_ordering(2)
+    <<< [0, 1]
+
+    >>> get_recursive_seed_ordering(4)
+    <<< [0, 3, 1, 2]
+
+    >>> get_recursive_seed_ordering(8)
+    <<< [0, 7, 3, 4, 1, 6, 2, 5]
+    """
+
+    assert size == 1 or (size > 1 and size % 2 == 0)
+
+    if size <= 1:
+        return [0]
+    result = []
+    for i in get_recursive_seed_ordering(size // 2):
+        result.append(i)
+        # i + x = size - 1 => x = size - i - 1
+        result.append(size - i - 1)
+    return result
+
+
+def get_recursive_seed_index(x: int, size: int):
+    ordering = get_recursive_seed_ordering(size)
+    return ordering.index(x)

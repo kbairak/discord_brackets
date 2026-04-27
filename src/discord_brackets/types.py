@@ -20,6 +20,7 @@ class Match:
     id: int
     left: Option
     right: Option
+    place: int
 
 
 @dataclass

@@ -3,14 +3,14 @@ import itertools
 import os
 import random
 from collections.abc import Awaitable, Callable
-from typing import Concatenate, Literal
+from typing import Concatenate, Literal, cast
 
 from sqlalchemy import case, delete, exists, func, select, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import aliased, joinedload
 
-from . import models, types
+from . import models, types, utils
 
 # Database setup
 _engine = None
@@ -141,7 +141,6 @@ async def get_state(session: AsyncSession, tournament_id: int) -> types.Tourname
             .order_by(models.Match.round)
         )
     ).all()
-    last_round_index = db_matches[-1][0].round
 
     ui_tournament = types.Tournament(id=tournament_id)
     for round_index, round_db_matches in itertools.groupby(db_matches, lambda m: m[0].round):
@@ -172,6 +171,7 @@ async def get_state(session: AsyncSession, tournament_id: int) -> types.Tourname
                         votes=right_vote_count,
                         winner=db_match.winner == "right",
                     ),
+                    place=db_match.place,
                 )
             )
 
@@ -289,13 +289,23 @@ async def start(session: AsyncSession, tournament_id: int, rankings: dict[str, i
             left = 2 * tournament_size - len(options) + i
             right = -i - 1
             session.add(
-                models.Match(round=0, left_id=options[left].id, right_id=options[right].id)
+                models.Match(
+                    round=0,
+                    left_id=options[left].id,
+                    right_id=options[right].id,
+                    place=min(cast(int, options[left].place), cast(int, options[right].place)),
+                )
             )
     else:
         for i in range(0, len(options) // 2):
             left, right = i, -i - 1
             session.add(
-                models.Match(round=1, left_id=options[left].id, right_id=options[right].id)
+                models.Match(
+                    round=1,
+                    left_id=options[left].id,
+                    right_id=options[right].id,
+                    place=min(cast(int, options[left].place), cast(int, options[right].place)),
+                )
             )
     print("Tournament started")
 
@@ -352,7 +362,7 @@ async def advance(session: AsyncSession, tournament_id: int) -> bool:
         .all()
     )
 
-    matches = (
+    open_matches = (
         await session.execute(
             select(
                 models.Match,
@@ -371,8 +381,10 @@ async def advance(session: AsyncSession, tournament_id: int) -> bool:
         )
     ).all()
 
+    option_to_match_place = {option: cast(int, option.place) for option in unplayed_options}
+
     winners: list[models.Option] = []
-    for match, left_vote_count, right_vote_count in matches:
+    for match, left_vote_count, right_vote_count in open_matches:
         if left_vote_count > right_vote_count:
             match.winner = "left"
         elif right_vote_count > left_vote_count:
@@ -382,10 +394,16 @@ async def advance(session: AsyncSession, tournament_id: int) -> bool:
 
         if match.winner == "left":
             winners.append(match.left)
+            option_to_match_place[match.left] = match.place
         else:
             winners.append(match.right)
+            option_to_match_place[match.right] = match.place
 
-    new_options = unplayed_options + winners
+    size = len(unplayed_options) + len(winners)
+    new_options = sorted(
+        (unplayed_options + winners),
+        key=lambda o: utils.get_recursive_seed_index(option_to_match_place[o], size),
+    )
 
     if len(new_options) <= 1:
         await session.execute(
@@ -398,12 +416,16 @@ async def advance(session: AsyncSession, tournament_id: int) -> bool:
 
     # Seed-based pairing: highest seed (#1) faces lowest, #2 faces second-lowest, etc.
     # This prevents top options from eliminating each other early
-    for i in range(0, len(new_options) // 2):
+    for i in range(0, len(new_options), 2):
         session.add(
             models.Match(
-                round=matches[0][0].round + 1,
+                round=open_matches[0][0].round + 1,
                 left_id=new_options[i].id,
-                right_id=new_options[-i - 1].id,
+                right_id=new_options[i + 1].id,
+                place=min(
+                    option_to_match_place[new_options[i]],
+                    option_to_match_place[new_options[i + 1]],
+                ),
             )
         )
     print("Tournament advanced")
