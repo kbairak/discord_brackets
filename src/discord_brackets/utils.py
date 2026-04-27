@@ -108,7 +108,7 @@ def split_emoji(text: str) -> tuple[str, str]:
 
 
 @functools.cache
-def get_recursive_seed_ordering(size: int):
+def get_recursive_seed_ordering(size: int) -> list[int]:
     """Usage:
 
     >>> get_recursive_seed_ordering(1)
@@ -124,9 +124,9 @@ def get_recursive_seed_ordering(size: int):
     <<< [0, 7, 3, 4, 1, 6, 2, 5]
     """
 
-    assert size == 1 or (size > 1 and size % 2 == 0)
+    assert size == 1 or (size > 1 and size.bit_count() == 1), "Only powers of 2 are supported"
 
-    if size <= 1:
+    if size == 1:
         return [0]
     result = []
     for i in get_recursive_seed_ordering(size // 2):

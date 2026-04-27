@@ -58,7 +58,12 @@ def render_bracket_svg(tournament: Tournament) -> str:
     # Calculate dimensions (only count non-None columns for width)
     total_width = sum(column_widths[i] for i in range(len(columns)) if not is_all_none[i])
     visible_columns = sum(1 for none in is_all_none if not none)
-    max_y = max(pos[1] + BOX_HEIGHT for col_positions in positions if col_positions is not None for pos in col_positions)
+    max_y = max(
+        pos[1] + BOX_HEIGHT
+        for col_positions in positions
+        if col_positions is not None
+        for pos in col_positions
+    )
     width = MARGIN * 2 + total_width + (visible_columns - 1) * COLUMN_SPACING
     height = max_y + MARGIN * 2  # Extra margin at bottom to prevent cropping
 
@@ -135,6 +140,7 @@ def _calculate_bracket_positions(
 
     All-None columns are given zero width (same x as next visible column).
     """
+
     # Helper function to calculate x position for a column index
     # Accounts for zero-width all-None columns and variable column widths
     def get_column_x(col_idx: int) -> float:
@@ -249,8 +255,18 @@ def _calculate_bracket_positions(
         champion_y = champion_positions[0][1]
 
         # Calculate actual bracket extent before centering
-        min_y = min(pos[1] for col_positions in positions if col_positions is not None for pos in col_positions)
-        max_y_before_shift = max(pos[1] for col_positions in positions if col_positions is not None for pos in col_positions)
+        min_y = min(
+            pos[1]
+            for col_positions in positions
+            if col_positions is not None
+            for pos in col_positions
+        )
+        max_y_before_shift = max(
+            pos[1]
+            for col_positions in positions
+            if col_positions is not None
+            for pos in col_positions
+        )
         bracket_height = max_y_before_shift - min_y
 
         # We want the champion at roughly 1/3 from top for visual balance
@@ -265,7 +281,12 @@ def _calculate_bracket_positions(
 
         # After shifting, ensure we don't have negative y values
         # If we do, shift everything down to maintain MARGIN
-        min_y_after = min(pos[1] for col_positions in positions if col_positions is not None for pos in col_positions)
+        min_y_after = min(
+            pos[1]
+            for col_positions in positions
+            if col_positions is not None
+            for pos in col_positions
+        )
         if min_y_after < MARGIN:
             correction = MARGIN - min_y_after
             for col_idx in range(len(positions)):
@@ -324,7 +345,9 @@ def _draw_box(x: float, y: float, box: Box, is_champion: bool, box_width: float)
 """
 
 
-def _draw_bracket_connector(from_x: float, from_y: float, to_x: float, to_y: float, box_width: float) -> str:
+def _draw_bracket_connector(
+    from_x: float, from_y: float, to_x: float, to_y: float, box_width: float
+) -> str:
     """Draw bracket-style connector (horizontal line with vertical segment if needed)."""
     # From right edge of left box to left edge of right box
     # Vertical center of boxes

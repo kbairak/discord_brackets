@@ -13,7 +13,6 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 from discord_brackets import db, models  # noqa: E402
 
-
 # Initialize database schema once at module load
 asyncio.run(db.init_db())
 

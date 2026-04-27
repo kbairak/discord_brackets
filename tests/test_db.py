@@ -497,7 +497,7 @@ class TestBracketSeeding:
             creator_id=1, guild_id=1, channel_id=100, title="Test"
         )
         for i in range(8):
-            await db.add_option(tournament_id=tournament_id, name=f"Option{i+1}")
+            await db.add_option(tournament_id=tournament_id, name=f"Option{i + 1}")
 
         await db.start(tournament_id=tournament_id, rankings={})
 
@@ -686,8 +686,7 @@ class TestVotingAndAdvancement:
         async with AsyncSession(db.get_engine()) as session:
             result = await session.execute(
                 select(models.Vote).where(
-                    models.Vote.match_id == match.id,
-                    models.Vote.user_id == 1001
+                    models.Vote.match_id == match.id, models.Vote.user_id == 1001
                 )
             )
             votes = list(result.scalars().all())
@@ -777,9 +776,7 @@ class TestVotingAndAdvancement:
         await db.advance(tournament_id=tournament_id)
 
         async with AsyncSession(db.get_engine()) as session:
-            result = await session.execute(
-                select(models.Match).where(models.Match.id == match.id)
-            )
+            result = await session.execute(select(models.Match).where(models.Match.id == match.id))
             updated_match = result.scalar_one()
 
             assert updated_match.winner == "left"
@@ -892,12 +889,8 @@ class TestPinManagement:
 
     async def test_pin_different_tournaments(self):
         """Test pin() doesn't affect pins from other tournaments."""
-        id1 = await db.create_tournament(
-            creator_id=1, guild_id=1, channel_id=100, title="T1"
-        )
-        id2 = await db.create_tournament(
-            creator_id=1, guild_id=1, channel_id=200, title="T2"
-        )
+        id1 = await db.create_tournament(creator_id=1, guild_id=1, channel_id=100, title="T1")
+        id2 = await db.create_tournament(creator_id=1, guild_id=1, channel_id=200, title="T2")
 
         await db.pin(tournament_id=id1, pin_id=11111)
         await db.pin(tournament_id=id2, pin_id=22222)
@@ -1035,9 +1028,7 @@ class TestDataIntegrity:
 
         # Vote and advance to final
         async with AsyncSession(db.get_engine()) as session:
-            result = await session.execute(
-                select(models.Match).order_by(models.Match.id)
-            )
+            result = await session.execute(select(models.Match).order_by(models.Match.id))
             matches = list(result.scalars().all())
 
         await db.vote(user_id=1001, match_id=matches[0].id, direction="left")

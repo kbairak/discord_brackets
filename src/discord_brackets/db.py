@@ -272,13 +272,8 @@ async def start(session: AsyncSession, tournament_id: int, rankings: dict[str, i
     for i, option in enumerate(options):
         option.place = i
 
-    # need to find the largest power of two less or equal to the number of options
-    # TODO: maybe refactor this with `bit_length`
-    tournament_size = 0
-    for i in itertools.count():
-        if 2**i > len(options):
-            tournament_size = 2 ** (i - 1)
-            break
+    # Find the largest power of two less or equal to the number of options
+    tournament_size = 1 << (len(options).bit_length() - 1)
 
     play_in_size = (len(options) - tournament_size) * 2
 
