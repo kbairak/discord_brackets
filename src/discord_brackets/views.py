@@ -78,6 +78,9 @@ class AddOptionModal(discord.ui.Modal):
         if not name:
             await interaction.response.defer()
             return
+        # Trim to Discord poll answer limit (55 characters)
+        if len(name) > 55:
+            name = name[:55]
         assert interaction.channel_id is not None
         tournament = await db.get_tournament_by_channel(interaction.channel_id)
         if tournament is None:
@@ -110,6 +113,8 @@ class EditOptionsModal(discord.ui.Modal):
     async def callback(self, interaction: discord.Interaction) -> None:
         text = (self.children[0].value or "").strip()
         option_names = [line.strip() for line in text.split("\n") if line.strip()]
+        # Trim each option to Discord poll answer limit (55 characters)
+        option_names = [name[:55] if len(name) > 55 else name for name in option_names]
         await db.edit_options(self.tournament_id, set(option_names))
         await self.message.edit(content=await db.get_options_text(self.tournament_id))
         await interaction.response.defer()

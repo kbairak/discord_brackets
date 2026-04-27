@@ -7,18 +7,24 @@ from typing import Concatenate, Literal
 
 from sqlalchemy import case, delete, exists, func, select, update
 from sqlalchemy.dialects.sqlite import insert
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import aliased, joinedload
 
 from . import models, types
 
 # Database setup
-engine = create_async_engine(os.environ["DATABASE_URL"])
+_engine = None
+
+
+def get_engine() -> AsyncEngine:
+    global _engine
+    if _engine is None:
+        _engine = create_async_engine(os.environ["DATABASE_URL"])
+    return _engine
 
 
 async def init_db():
-    async with engine.begin() as conn:
+    async with get_engine().begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)
 
 
@@ -28,7 +34,7 @@ def with_session[**P, R](
 
     @functools.wraps(func)
     async def decorated(*args: P.args, **kwargs: P.kwargs) -> R:
-        async with AsyncSession(engine, expire_on_commit=False) as session, session.begin():
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session, session.begin():
             return await func(session, *args, **kwargs)
 
     return decorated
@@ -86,13 +92,15 @@ async def get_options_text(session: AsyncSession, tournament_id: int) -> str:
         .scalars()
         .one()
     )
-    options = (
-        await session.execute(
-            select(models.Option)
-            .where(models.Option.tournament_id == tournament_id)
-            .order_by(models.Option.place, models.Option.created_at)
-        )
-    ).scalars()
+    options = list(
+        (
+            await session.execute(
+                select(models.Option)
+                .where(models.Option.tournament_id == tournament_id)
+                .order_by(models.Option.place, models.Option.created_at)
+            )
+        ).scalars()
+    )
     options_text = (
         "Options:\n" + "\n".join(f"- {option.name}" for option in options)
         if options
@@ -205,11 +213,12 @@ async def create_tournament(
 
 @with_session
 async def add_option(session: AsyncSession, tournament_id: int, name: str) -> None:
-    try:
-        session.add(models.Option(tournament_id=tournament_id, name=name))
-        print(f"Option added: {name} to tournament {tournament_id}")
-    except IntegrityError:
-        pass
+    await session.execute(
+        insert(models.Option)
+        .values(tournament_id=tournament_id, name=name)
+        .on_conflict_do_nothing(index_elements=["tournament_id", "name"])
+    )
+    print(f"Option added: {name} to tournament {tournament_id}")
 
 
 @with_session
@@ -264,6 +273,7 @@ async def start(session: AsyncSession, tournament_id: int, rankings: dict[str, i
         option.place = i
 
     # need to find the largest power of two less or equal to the number of options
+    # TODO: maybe refactor this with `bit_length`
     tournament_size = 0
     for i in itertools.count():
         if 2**i > len(options):
